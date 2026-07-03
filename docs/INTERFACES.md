@@ -104,8 +104,8 @@ async def execute_eval_run(session, eval_run: EvalRun) -> EvalRun   # in harness
   `compile_context(task, repo?, service?, max_tokens?)`, `search_context(query, repo?, service?)`,
   `get_document(document_id)`, `report_feedback(type, context_packet_id?, document_id?, comment?)`.
   Auth: env CE_MCP_TOKEN (raw key, kind=mcp) resolved to a user once at tool-call time; ACL
-  enforced by reusing retrieval/compiler. Entrypoints: `ctx mcp serve` (stdio) and
-  `ctx mcp serve --http` (streamable-http on :8765).
+  enforced by reusing retrieval/compiler. Entrypoints: `ctx serve-mcp` (stdio) and
+  `ctx serve-mcp --http` (streamable-http on :8765).
 - `context_engine/cli/main.py`: Typer app `app`; `def app_entry() -> None` wraps app() (pyproject
   script `ctx`). Commands: `seed [--reset|--if-empty]`, `sync <source-name|--all>`,
   `search <query> [--repo --service --json]`, `compile <task> [--repo --service --max-tokens --json]`,
