@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import {
   Area,
   AreaChart,
@@ -81,7 +82,7 @@ function TrendChartCard({
     </>
   );
 
-  let chart: React.ReactElement;
+  let chart: ReactElement;
   if (kind === "line") {
     chart = (
       <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
