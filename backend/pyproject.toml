@@ -51,6 +51,9 @@ addopts = "--cov=context_engine --cov-report=term-missing --cov-report=xml --cov
 
 [tool.coverage.run]
 source = ["context_engine"]
+# SQLAlchemy's asyncpg dialect resumes awaited frames inside greenlets; without
+# greenlet concurrency tracing, async endpoint bodies are invisible to coverage.
+concurrency = ["thread", "greenlet"]
 
 [tool.ruff]
 line-length = 100

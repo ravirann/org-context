@@ -57,6 +57,10 @@ async def engine() -> AsyncIterator[AsyncEngine]:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+        # HNSW is approximate: its recall depends on insertion history, which makes
+        # vector-search assertions order-sensitive across the suite. Tests run on tiny
+        # datasets — drop the ANN index so pgvector uses exact (deterministic) scans.
+        await conn.execute(text("DROP INDEX IF EXISTS ix_chunks_embedding"))
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
