@@ -331,7 +331,13 @@ describe("HeatmapsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Export CSV/ }));
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(clickSpy).toHaveBeenCalledTimes(1);
-    const text = await blobs[0].text();
+    // jsdom's Blob lacks .text(); read via FileReader instead.
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blobs[0]);
+    });
     expect(text.startsWith("user,team,")).toBe(true);
     expect(text).toContain("Priya Nair");
     clickSpy.mockRestore();

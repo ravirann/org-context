@@ -112,10 +112,15 @@ function DialogContent({
   useEffect(() => {
     if (!open) return;
     document.addEventListener("keydown", handleKeyDown);
-    const panel = panelRef.current;
-    panel?.focus();
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, handleKeyDown]);
+
+  // Focus the panel only when the dialog opens — this effect must not depend on
+  // handleKeyDown, or any parent re-render (e.g. typing in a controlled input)
+  // would re-run it and steal focus from the active element.
+  useEffect(() => {
+    if (open) panelRef.current?.focus();
+  }, [open]);
 
   if (!open) return null;
 

@@ -48,9 +48,12 @@ describe("PacketDetailPage", () => {
     renderWithProviders(<PacketDetailPage />, ROUTE);
     await screen.findByText("Selected sources (2)");
 
-    expect(
-      screen.getByRole("link", { name: "Payment webhook retry runbook" }),
-    ).toHaveAttribute("href", "/explorer/documents/doc-1");
+    // The title appears both as a selected-source link and a citation link.
+    const links = screen.getAllByRole("link", { name: "Payment webhook retry runbook" });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      expect(link).toHaveAttribute("href", "/explorer/documents/doc-1");
+    }
     expect(screen.getByText("vector match")).toBeInTheDocument();
     expect(screen.getByText("fresh")).toBeInTheDocument();
     expect(screen.getByText("authoritative")).toBeInTheDocument();

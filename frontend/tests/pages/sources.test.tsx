@@ -46,7 +46,8 @@ describe("SourcesPage", () => {
     expect(within(github).getByRole("switch")).toBeChecked();
 
     const jira = screen.getByTestId("source-row-src-2");
-    expect(within(jira).getByText("error")).toBeInTheDocument();
+    // Both the sync-status and ACL-status badges can read "error".
+    expect(within(jira).getAllByText("error").length).toBeGreaterThan(0);
     const slack = screen.getByTestId("source-row-src-3");
     expect(within(slack).getByText("idle")).toBeInTheDocument();
     expect(within(slack).getByRole("switch")).not.toBeChecked();

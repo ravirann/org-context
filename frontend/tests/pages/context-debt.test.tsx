@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -65,10 +65,10 @@ describe("ContextDebtPage", () => {
     await screen.findByTestId("stale-docs-chart");
     await userEvent.click(screen.getByRole("button", { name: "Table" }));
 
-    expect(screen.getByTestId("stale-docs-table")).toBeInTheDocument();
+    const table = screen.getByTestId("stale-docs-table");
     expect(screen.queryByTestId("stale-docs-chart")).not.toBeInTheDocument();
-    expect(screen.getByText("payments-api")).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(within(table).getAllByText("payments-api").length).toBeGreaterThan(0);
+    expect(within(table).getByText("12")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Chart" }));
     expect(screen.getByTestId("stale-docs-chart")).toBeInTheDocument();
