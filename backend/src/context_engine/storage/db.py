@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from context_engine.config.settings import get_settings
 from context_engine.storage.models import Base
@@ -44,15 +45,26 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 @asynccontextmanager
 async def session_scope() -> AsyncIterator[AsyncSession]:
-    """Context manager for scripts and workers: commit on success, rollback on error."""
-    factory = get_sessionmaker()
-    async with factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+    """Context manager for scripts and workers: commit on success, rollback on error.
+
+    Uses a private NullPool engine per scope rather than the cached application
+    engine: Dramatiq actors call asyncio.run() per message, and connections pooled
+    on a cached engine stay bound to the (dead) loop of a previous invocation,
+    raising "attached to a different loop" on reuse. The API path (get_session)
+    keeps the cached pooled engine — uvicorn runs a single long-lived loop.
+    """
+    engine = create_async_engine(get_settings().database_url, poolclass=NullPool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+    finally:
+        await engine.dispose()
 
 
 async def create_all(engine: AsyncEngine | None = None) -> None:
