@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, KeyRound } from "lucide-react";
+import { BookOpen, Cpu, KeyRound } from "lucide-react";
 
 import { QueryBoundary } from "@/components/admin/query-boundary";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -12,7 +13,74 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { api, API_BASE_URL } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
-import type { Settings } from "@/lib/types";
+import type { Settings, SystemInfo } from "@/lib/types";
+
+/** Admin → System → Runtime: embedding provider, auth mode, queue depth, version. */
+function RuntimeCard() {
+  const query = useQuery({
+    queryKey: queryKeys.systemInfo(),
+    queryFn: () => api.get<SystemInfo>("/v1/system/info"),
+  });
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <Cpu className="size-3.5" aria-hidden="true" />
+          Runtime
+        </CardTitle>
+        <CardDescription>
+          Live embedding provider, auth mode and worker queue depth from /v1/system/info.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <QueryBoundary query={query}>
+          {(info) => (
+            <div data-testid="system-runtime-card" className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Embedding
+                </p>
+                <p className="text-xs">
+                  <span className="font-medium">{info.embedding.provider}</span>
+                  {" · "}
+                  {info.embedding.model}
+                  {" · "}
+                  {info.embedding.dim} dim
+                </p>
+                {info.embedding.provider === "deterministic" ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    no semantic signal — deterministic
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Auth mode
+                </p>
+                <Badge variant="outline">{info.auth_mode}</Badge>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Queue depth
+                </p>
+                <p className="text-xs tabular-nums">
+                  {info.queue_depth === null ? "—" : info.queue_depth}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Version
+                </p>
+                <p className="text-xs font-mono">{info.version}</p>
+              </div>
+            </div>
+          )}
+        </QueryBoundary>
+      </CardContent>
+    </Card>
+  );
+}
 
 /** Admin → System: read-only settings dump, MCP hint and API docs links. */
 function SystemTab() {
@@ -23,6 +91,8 @@ function SystemTab() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      <RuntimeCard />
+
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Current settings</CardTitle>

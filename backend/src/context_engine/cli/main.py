@@ -311,6 +311,41 @@ def eval_report(
     _run(_do())
 
 
+@app.command()
+def reindex(
+    yes: Annotated[bool, typer.Option("--yes", help="Skip the confirmation prompt.")] = False,
+    api_key: ApiKeyOption = DEFAULT_API_KEY,
+) -> None:
+    """Re-chunk and re-embed all active documents with the configured provider."""
+    from context_engine.indexing.embeddings import current_embedding_version
+
+    version = current_embedding_version()
+    if not yes:
+        confirmed = typer.confirm(
+            f"Re-index ALL active documents with embedding version {version!r}?"
+        )
+        if not confirmed:
+            typer.echo("Aborted.")
+            raise typer.Exit(code=1)
+
+    async def _do() -> None:
+        from context_engine.indexing.reindex import reindex_all
+        from context_engine.storage.models import UserRole
+
+        async with session_scope() as session:
+            user = await get_user_by_api_key(session, api_key)
+            if user is None:
+                typer.echo(f"Error: invalid or inactive api key: {api_key!r}", err=True)
+                raise typer.Exit(code=1)
+            if user.role != UserRole.admin:
+                typer.echo("Error: reindex requires an admin api key.", err=True)
+                raise typer.Exit(code=1)
+            count = await reindex_all(session)
+            typer.echo(f"Re-indexed {count} document(s) at {version}.")
+
+    _run(_do())
+
+
 @app.command("serve-api")
 def serve_api(
     port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8000,

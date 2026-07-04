@@ -13,6 +13,7 @@ import type {
   Me,
   Paginated,
   Source,
+  SyncRun,
 } from "@/lib/types";
 
 /* ------------------------------------ me -------------------------------------- */
@@ -355,3 +356,62 @@ export const sources: Source[] = [
 ];
 
 export const sourcesResponse: ItemsResponse<Source> = { items: sources };
+
+/* --------------------------------- sync runs ------------------------------------ */
+
+export const syncRunOk: SyncRun = {
+  id: "run-a1",
+  trigger: "scheduled",
+  status: "ok",
+  started_at: "2026-07-02T05:00:00Z",
+  finished_at: "2026-07-02T05:03:12Z",
+  docs_upserted: 42,
+  docs_skipped: 118,
+  docs_pruned: 2,
+  chunks_indexed: 340,
+  errors: [],
+};
+
+export const syncRunError: SyncRun = {
+  id: "run-a2",
+  trigger: "manual",
+  status: "error",
+  started_at: "2026-06-30T22:00:00Z",
+  finished_at: "2026-06-30T22:01:45Z",
+  docs_upserted: 5,
+  docs_skipped: 3,
+  docs_pruned: 0,
+  chunks_indexed: 40,
+  errors: [
+    { external_id: "issue-441", error: "401 Unauthorized: token expired" },
+    { external_id: null, error: "Timed out fetching page 3" },
+  ],
+};
+
+export const syncRunRunning: SyncRun = {
+  id: "run-a3",
+  trigger: "manual",
+  status: "running",
+  started_at: "2026-07-03T09:00:00Z",
+  finished_at: null,
+  docs_upserted: 0,
+  docs_skipped: 0,
+  docs_pruned: 0,
+  chunks_indexed: 0,
+  errors: [],
+};
+
+export const syncRunsResponse: ItemsResponse<SyncRun> = {
+  items: [syncRunError, syncRunOk],
+};
+
+/** Sources list where src-1 carries a last_sync_run summary. */
+export const sourcesWithLastRun: Source[] = [
+  { ...sources[0], last_sync_run: syncRunOk },
+  { ...sources[1], last_sync_run: syncRunError },
+  { ...sources[2], last_sync_run: null },
+];
+
+export const sourcesWithLastRunResponse: ItemsResponse<Source> = {
+  items: sourcesWithLastRun,
+};

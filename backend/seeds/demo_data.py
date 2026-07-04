@@ -1569,6 +1569,114 @@ def _build_audit(ctx: _SeedContext) -> list[m.AuditLog]:
     return rows
 
 
+def _build_sync_runs(ctx: _SeedContext) -> list[m.SyncRun]:
+    """~2 sync runs per source (one realistic error) spread over the past 14 days."""
+    rng = ctx.rng
+    rows: list[m.SyncRun] = []
+    error_messages = [
+        "upstream returned 502 for 3/40 items; recorded and continued",
+        "rate limited by GitHub API (secondary limit)",
+        "connection reset while fetching page 2",
+    ]
+    for source in ctx.sources.values():
+        for i in range(2):
+            started = ctx.now - timedelta(days=rng.uniform(0, 14), hours=rng.uniform(0, 6))
+            duration = timedelta(seconds=rng.randint(4, 90))
+            errored = i == 1 and rng.random() < 0.5
+            upserted = 0 if errored else rng.randint(3, source.document_count or 12)
+            skipped = 0 if errored else rng.randint(0, 8)
+            pruned = 0 if errored else rng.choice([0, 0, 0, 1, 2])
+            rows.append(
+                m.SyncRun(
+                    id=_uid(rng),
+                    source_id=source.id,
+                    trigger=m.SyncTrigger.scheduled if i == 0 else m.SyncTrigger.manual,
+                    status=m.SyncRunStatus.error if errored else m.SyncRunStatus.ok,
+                    started_at=started,
+                    finished_at=started + duration,
+                    docs_upserted=upserted,
+                    docs_skipped=skipped,
+                    docs_pruned=pruned,
+                    chunks_indexed=upserted * rng.randint(1, 3),
+                    errors=(
+                        [
+                            {
+                                "external_id": f"item-{rng.randint(1, 99)}",
+                                "error": rng.choice(error_messages),
+                            }
+                        ]
+                        if errored
+                        else []
+                    ),
+                    created_at=started,
+                    updated_at=started + duration,
+                )
+            )
+    return rows
+
+
+def _build_search_events(ctx: _SeedContext) -> list[m.SearchEvent]:
+    """~30 search events over the past 14 days, incl. repeated zero-result queries."""
+    rng = ctx.rng
+    rows: list[m.SearchEvent] = []
+    zero_result_queries = [
+        "kafka partition rebalance runbook",
+        "grpc deadline budget",
+        "terraform drift detection policy",
+    ]
+    hit_queries = [
+        "payment retry policy",
+        "idempotency keys charge endpoint",
+        "cursor pagination standard",
+        "auth token ttl",
+        "outbox event publishing",
+        "canary rollback procedure",
+        "connection pool exhaustion incident",
+        "pii redaction logging",
+    ]
+    users = list(ctx.users.values())
+    public_docs = [d for d in ctx.documents if d.acl_public]
+
+    # Repeated zero-result queries (multiple hits each -> surfaces in context debt).
+    for query in zero_result_queries:
+        for _ in range(rng.randint(3, 5)):
+            created = ctx.now - timedelta(days=rng.uniform(0, 14), hours=rng.uniform(0, 12))
+            rows.append(
+                m.SearchEvent(
+                    id=_uid(rng),
+                    user_id=rng.choice(users).id,
+                    query=query,
+                    result_count=0,
+                    acl_blocked_count=rng.choice([0, 0, 1]),
+                    took_ms=round(rng.uniform(8.0, 60.0), 2),
+                    cache_hit=False,
+                    top_document_ids=[],
+                    created_at=created,
+                )
+            )
+
+    # Successful queries with a handful of top document ids.
+    for query in hit_queries:
+        for _ in range(rng.randint(1, 3)):
+            created = ctx.now - timedelta(days=rng.uniform(0, 14), hours=rng.uniform(0, 12))
+            k = min(rng.randint(2, 6), len(public_docs))
+            top = [str(d.id) for d in rng.sample(public_docs, k=k)]
+            rows.append(
+                m.SearchEvent(
+                    id=_uid(rng),
+                    user_id=rng.choice(users).id,
+                    query=query,
+                    result_count=len(top),
+                    acl_blocked_count=rng.choice([0, 0, 0, 1, 2]),
+                    took_ms=round(rng.uniform(5.0, 45.0), 2),
+                    cache_hit=rng.random() < 0.3,
+                    top_document_ids=top,
+                    created_at=created,
+                )
+            )
+    return rows
+
+
 def _build_settings(ctx: _SeedContext) -> list[m.AppSetting]:
     return [m.AppSetting(key=k, value=v) for k, v in APP_SETTINGS.items()]
 
@@ -1602,6 +1710,8 @@ def _build_all(ctx: _SeedContext) -> dict[str, list[Any]]:
     feedback = _build_feedback(ctx)
     activity = _build_activity(ctx)
     audit = _build_audit(ctx)
+    sync_runs = _build_sync_runs(ctx)
+    search_events = _build_search_events(ctx)
     settings_rows = _build_settings(ctx)
     return {
         "teams": teams,
@@ -1621,6 +1731,8 @@ def _build_all(ctx: _SeedContext) -> dict[str, list[Any]]:
         "feedback": feedback,
         "activity_events": activity,
         "audit_logs": audit,
+        "sync_runs": sync_runs,
+        "search_events": search_events,
         "app_settings": settings_rows,
     }
 
@@ -1643,6 +1755,8 @@ _INSERT_ORDER = [
     "feedback",
     "activity_events",
     "audit_logs",
+    "sync_runs",
+    "search_events",
     "app_settings",
 ]
 
@@ -2060,6 +2174,60 @@ async def seed_minimal(session: AsyncSession) -> dict[str, int]:
     )
     session.add(audit)
 
+    sync_runs = [
+        m.SyncRun(
+            id=_uid(rng),
+            source_id=adr_source.id,
+            trigger=m.SyncTrigger.scheduled,
+            status=m.SyncRunStatus.ok,
+            started_at=now - timedelta(days=1),
+            finished_at=now - timedelta(days=1) + timedelta(seconds=12),
+            docs_upserted=8,
+            docs_skipped=0,
+            docs_pruned=0,
+            chunks_indexed=8,
+            errors=[],
+        ),
+        m.SyncRun(
+            id=_uid(rng),
+            source_id=wiki_source.id,
+            trigger=m.SyncTrigger.manual,
+            status=m.SyncRunStatus.error,
+            started_at=now - timedelta(days=2),
+            finished_at=now - timedelta(days=2) + timedelta(seconds=5),
+            docs_upserted=0,
+            docs_skipped=0,
+            docs_pruned=0,
+            chunks_indexed=0,
+            errors=[{"external_id": "min-3", "error": "upstream returned 502"}],
+        ),
+    ]
+    session.add_all(sync_runs)
+
+    search_events = []
+    for query, count in [
+        ("kafka partition rebalance runbook", 0),
+        ("kafka partition rebalance runbook", 0),
+        ("grpc deadline budget", 0),
+        ("payment retry policy", 3),
+        ("idempotency keys", 2),
+    ]:
+        created = now - timedelta(days=rng.uniform(0, 14))
+        search_events.append(
+            m.SearchEvent(
+                id=_uid(rng),
+                user_id=engineer.id,
+                query=query,
+                result_count=count,
+                acl_blocked_count=0,
+                took_ms=round(rng.uniform(5.0, 40.0), 2),
+                cache_hit=False,
+                top_document_ids=[str(adr_doc.id)] if count else [],
+                created_at=created,
+            )
+        )
+    session.add_all(search_events)
+
     await session.flush()
     return {
         "teams": 2,
@@ -2078,6 +2246,8 @@ async def seed_minimal(session: AsyncSession) -> dict[str, int]:
         "activity_events": len(activity),
         "app_settings": len(APP_SETTINGS),
         "audit_logs": 1,
+        "sync_runs": len(sync_runs),
+        "search_events": len(search_events),
     }
 
 

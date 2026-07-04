@@ -8,7 +8,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from context_engine.config.constants import CHUNK_SIZE_CHARS
-from context_engine.indexing.embeddings import embed_text
+from context_engine.indexing.embeddings import current_embedding_version, embed_texts
 from context_engine.indexing.tokens import estimate_tokens
 from context_engine.storage.models import Chunk, Document
 
@@ -84,15 +84,18 @@ async def index_document(session: AsyncSession, doc: Document) -> int:
     """Replace the document's chunks (content, tokens, embedding); return the count."""
     await session.execute(delete(Chunk).where(Chunk.document_id == doc.id))
     pieces = chunk_text(doc.content)
+    embeddings = await embed_texts([piece for piece in pieces])
+    version = current_embedding_version()
     session.add_all(
         Chunk(
             document_id=doc.id,
             ord=i,
             content=piece,
             token_count=estimate_tokens(piece),
-            embedding=embed_text(piece),
+            embedding=embedding,
+            embedding_version=version,
         )
-        for i, piece in enumerate(pieces)
+        for i, (piece, embedding) in enumerate(zip(pieces, embeddings, strict=True))
     )
     await session.flush()
     return len(pieces)

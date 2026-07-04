@@ -15,6 +15,7 @@ import type {
   Me,
   Paginated,
   Settings,
+  SystemInfo,
 } from "@/lib/types";
 
 export function paginated<T>(
@@ -285,4 +286,20 @@ export const settingsFixture: Settings = {
   pii_redaction: { enabled: true, patterns: ["\\b\\d{3}-\\d{2}-\\d{4}\\b"] },
   feature_flags: { conflict_auto_resolve: false, graph_v2: true },
   token_budget: { max_packet_tokens: 6000 },
+};
+
+/* --------------------------------- system info ---------------------------------- */
+
+export const systemInfoFixture: SystemInfo = {
+  embedding: { provider: "openai", model: "text-embedding-3-small", dim: 384 },
+  auth_mode: "oidc",
+  queue_depth: 3,
+  version: "0.3.0",
+};
+
+export const systemInfoDeterministicFixture: SystemInfo = {
+  embedding: { provider: "deterministic", model: "sha256-v1", dim: 384 },
+  auth_mode: "demo",
+  queue_depth: null,
+  version: "0.3.0",
 };

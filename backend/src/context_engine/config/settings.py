@@ -32,6 +32,12 @@ class Settings(BaseSettings):
 
     embedding_dim: int = 384
 
+    # --- Embeddings (see docs/PHASE3_CONTRACT.md §A, docs/EMBEDDINGS.md) --------------
+    embedding_provider: str = "deterministic"
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    embedding_batch_size: int = 64
+
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_host: str = "https://cloud.langfuse.com"

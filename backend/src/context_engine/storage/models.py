@@ -70,6 +70,17 @@ class AclSyncStatus(enum.StrEnum):
     error = "error"
 
 
+class SyncTrigger(enum.StrEnum):
+    manual = "manual"
+    scheduled = "scheduled"
+
+
+class SyncRunStatus(enum.StrEnum):
+    running = "running"
+    ok = "ok"
+    error = "error"
+
+
 class DocType(enum.StrEnum):
     code = "code"
     pr = "pr"
@@ -337,6 +348,7 @@ class Document(TimestampMixin, Base):
     doc_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     usage_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     rejection_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     source: Mapped[Source] = relationship(back_populates="documents")
     author: Mapped[User | None] = relationship(foreign_keys=[author_id])
@@ -367,6 +379,12 @@ class Chunk(TimestampMixin, Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     embedding: Mapped[Any] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
+    embedding_version: Mapped[str] = mapped_column(
+        String(100),
+        default="deterministic/sha256-v1",
+        server_default="deterministic/sha256-v1",
+        nullable=False,
+    )
     tsv: Mapped[str | None] = mapped_column(
         TSVECTOR,
         Computed("to_tsvector('english', content)", persisted=True),
@@ -633,3 +651,55 @@ class ActivityEvent(Base):
 
     user: Mapped[User] = relationship()
     team: Mapped[Team | None] = relationship()
+
+
+class SyncRun(TimestampMixin, Base):
+    __tablename__ = "sync_runs"
+    __table_args__ = (
+        Index("ix_sync_runs_source_id", "source_id"),
+        Index("ix_sync_runs_created_at", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger: Mapped[SyncTrigger] = mapped_column(
+        _enum(SyncTrigger, "sync_trigger"), default=SyncTrigger.manual, nullable=False
+    )
+    status: Mapped[SyncRunStatus] = mapped_column(
+        _enum(SyncRunStatus, "sync_run_status"), default=SyncRunStatus.running, nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    docs_upserted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    docs_skipped: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    docs_pruned: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    chunks_indexed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    errors: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, nullable=False)
+
+    source: Mapped[Source] = relationship()
+
+
+class SearchEvent(Base):
+    __tablename__ = "search_events"
+    __table_args__ = (
+        Index("ix_search_events_query", "query"),
+        Index("ix_search_events_created_at", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    result_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    acl_blocked_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    took_ms: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    cache_hit: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    top_document_ids: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User | None] = relationship()

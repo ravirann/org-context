@@ -74,6 +74,22 @@ class Connector(Protocol):
         ...
 
 
+async def list_active_external_ids(connector: Connector, source: Source) -> list[str] | None:
+    """Return the connector's currently-active external ids, or ``None``.
+
+    Optional connector capability used for pruning: a connector that can
+    enumerate the ids still present upstream returns them so the pipeline can
+    deprecate documents that have disappeared. Connectors that cannot (or do not)
+    enumerate return ``None`` and are never pruned. The default is ``None``; a
+    connector opts in by defining an async ``list_active_external_ids(source)``.
+    """
+    method = getattr(connector, "list_active_external_ids", None)
+    if method is None:
+        return None
+    ids = await method(source)
+    return list(ids) if ids is not None else None
+
+
 _REGISTRY: dict[str, Connector] = {}
 
 

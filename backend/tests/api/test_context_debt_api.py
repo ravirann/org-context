@@ -44,23 +44,35 @@ async def test_conflicts_by_source_type(api_client: object) -> None:
     assert "adr" in types or "confluence" in types
 
 
-async def test_repeated_misses_proxy(api_client: object, seeded_session: object) -> None:
-    # Add two missing_context feedbacks with the same comment -> grouped count 2.
+async def test_repeated_misses_zero_result_searches(
+    api_client: object, seeded_session: object
+) -> None:
+    # Zero-result searches (SearchEvent rows) grouped by lowercased query -> count.
     from sqlalchemy import select
 
-    from context_engine.storage.models import Feedback, FeedbackType, User
+    from context_engine.storage.models import SearchEvent, User
 
     admin = (
         await seeded_session.execute(  # type: ignore[attr-defined]
             select(User).where(User.email == "admin@demo.dev")
         )
     ).scalar_one()
-    for _ in range(2):
+    # Two zero-result rows for the same query (varied case -> normalized together),
+    # plus one with results that must NOT be counted.
+    for query, result_count in [
+        ("Where is the deploy runbook?", 0),
+        ("where is the deploy runbook?", 0),
+        ("where is the deploy runbook?", 3),
+    ]:
         seeded_session.add(  # type: ignore[attr-defined]
-            Feedback(
+            SearchEvent(
                 user_id=admin.id,
-                type=FeedbackType.missing_context,
-                comment="where is the deploy runbook?",
+                query=query,
+                result_count=result_count,
+                acl_blocked_count=0,
+                took_ms=1.0,
+                cache_hit=False,
+                top_document_ids=[],
             )
         )
     await seeded_session.flush()  # type: ignore[attr-defined]

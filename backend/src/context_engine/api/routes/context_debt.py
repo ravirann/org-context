@@ -1,8 +1,8 @@
 """GET /v1/context-debt — the 8-section organizational context-debt report.
 
 Section notes:
-- ``repeated_misses``: there is no dedicated missed-query log, so we proxy this from
-  ``missing_context`` feedback comments grouped by comment text (documented choice).
+- ``repeated_misses``: zero-result searches (``SearchEvent`` rows with
+  ``result_count == 0``) grouped by lowercased query, most-frequent first (top 10).
 - ``undocumented_apis``: ``api`` entities that have no outgoing/incoming ``documents`` edge.
 """
 
@@ -37,8 +37,7 @@ from context_engine.storage.models import (
     EdgeType,
     Entity,
     EntityType,
-    Feedback,
-    FeedbackType,
+    SearchEvent,
     Source,
 )
 
@@ -46,6 +45,7 @@ router = APIRouter(tags=["context-debt"])
 
 NEVER_USED_CAP = 20
 REJECTED_CAP = 20
+REPEATED_MISS_CAP = 10
 
 
 @router.get("/context-debt", response_model=ContextDebtReport)
@@ -117,23 +117,18 @@ async def context_debt(session: SessionDep, user: UserDep) -> ContextDebtReport:
         if e.id not in documented_entity_ids
     ]
 
-    # 4. Repeated misses (proxy: missing_context feedback comments grouped).
+    # 4. Repeated misses: zero-result searches grouped by lowercased query (top 10).
+    normalized_query = func.lower(SearchEvent.query)
     miss_rows = (
-        (
-            await session.execute(
-                select(Feedback.comment).where(
-                    Feedback.type == FeedbackType.missing_context,
-                    Feedback.comment.is_not(None),
-                )
-            )
+        await session.execute(
+            select(normalized_query.label("query"), func.count().label("miss_count"))
+            .where(SearchEvent.result_count == 0)
+            .group_by(normalized_query)
+            .order_by(func.count().desc())
+            .limit(REPEATED_MISS_CAP)
         )
-        .scalars()
-        .all()
-    )
-    miss_counter = Counter(c for c in miss_rows if c)
-    repeated_misses = [
-        RepeatedMissRow(query=query, count=count) for query, count in miss_counter.most_common()
-    ]
+    ).all()
+    repeated_misses = [RepeatedMissRow(query=r.query, count=int(r[1])) for r in miss_rows]
 
     # 5. Failed agent areas: failed/total per repo+service pair.
     run_rows = (

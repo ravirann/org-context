@@ -41,6 +41,7 @@ def get_broker() -> dramatiq.Broker:
 for _module in (
     "context_engine.ingestion.actors",
     "context_engine.evals.actors",
+    "context_engine.indexing.actors",
 ):
     try:
         importlib.import_module(_module)

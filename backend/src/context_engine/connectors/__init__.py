@@ -8,6 +8,7 @@ from context_engine.connectors.base import (
     RawItem,
     demo_timestamp,
     get_connector,
+    list_active_external_ids,
     register,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "RawItem",
     "demo_timestamp",
     "get_connector",
+    "list_active_external_ids",
     "register",
 ]

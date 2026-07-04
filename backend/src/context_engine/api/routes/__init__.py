@@ -21,6 +21,7 @@ from context_engine.api.routes import (
     search,
     settings,
     sources,
+    system,
 )
 
 ALL_ROUTERS: list[APIRouter] = [
@@ -39,5 +40,6 @@ ALL_ROUTERS: list[APIRouter] = [
     feedback.router,
     admin.router,
     settings.router,
+    system.router,
     me.router,
 ]

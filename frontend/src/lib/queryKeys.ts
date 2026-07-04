@@ -31,6 +31,7 @@ export const queryKeys = {
   goldenTasks: () => ["evals", "golden-tasks"] as const,
 
   sources: () => ["sources"] as const,
+  sourceSyncRuns: (id: string) => ["sources", id, "sync-runs"] as const,
 
   conflicts: (filters: unknown) => ["conflicts", "list", filters] as const,
   conflict: (id: string) => ["conflicts", "detail", id] as const,
@@ -42,4 +43,5 @@ export const queryKeys = {
   adminApiKeys: () => ["admin", "api-keys"] as const,
   auditLogs: (filters: unknown) => ["admin", "audit-logs", filters] as const,
   settings: () => ["settings"] as const,
+  systemInfo: () => ["system", "info"] as const,
 };

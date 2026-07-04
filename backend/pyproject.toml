@@ -23,6 +23,9 @@ dependencies = [
     "pyjwt[crypto]>=2.9",
 ]
 
+[project.optional-dependencies]
+local-embeddings = ["fastembed>=0.4"]
+
 [project.scripts]
 ctx = "context_engine.cli.main:app_entry"
 

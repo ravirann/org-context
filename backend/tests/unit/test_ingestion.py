@@ -65,18 +65,29 @@ def test_worker_module_imports_ingestion_actors() -> None:
 
 
 def test_sync_source_actor_runs_the_async_helper(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[str] = []
+    calls: list[tuple[str, str]] = []
 
-    async def fake(source_id: str) -> None:
-        calls.append(source_id)
+    async def fake(source_id: str, trigger: str = "manual") -> None:
+        calls.append((source_id, trigger))
 
     monkeypatch.setattr(actors, "_sync_source_by_id", fake)
     actors.sync_source_actor("abc-123")
-    assert calls == ["abc-123"]
+    assert calls == [("abc-123", "manual")]
+
+
+def test_sync_source_actor_forwards_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    async def fake(source_id: str, trigger: str = "manual") -> None:
+        calls.append((source_id, trigger))
+
+    monkeypatch.setattr(actors, "_sync_source_by_id", fake)
+    actors.sync_source_actor("abc-123", trigger="scheduled")
+    assert calls == [("abc-123", "scheduled")]
 
 
 def test_sync_source_actor_propagates_failures(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def boom(source_id: str) -> None:
+    async def boom(source_id: str, trigger: str = "manual") -> None:
         raise ValueError("nope")
 
     monkeypatch.setattr(actors, "_sync_source_by_id", boom)

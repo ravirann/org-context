@@ -138,9 +138,11 @@ async def test_resync_is_idempotent_and_bumps_updated_at(seeded_session: AsyncSe
 
     chunks_before = (await seeded_session.execute(total_chunks())).scalar_one()
 
+    # Re-syncing identical content skips every item (unchanged-content skip); no
+    # documents are re-embedded, so nothing is upserted the second time.
     second_count = await sync_source(seeded_session, source)
 
-    assert second_count == first_count
+    assert second_count == 0
     docs_after = await _docs_by_external_id(seeded_session, source)
     assert len(docs_after) == first_count, "re-sync must not duplicate documents"
     assert {doc.id for doc in docs_after.values()} == first_doc_ids
@@ -148,7 +150,7 @@ async def test_resync_is_idempotent_and_bumps_updated_at(seeded_session: AsyncSe
     assert source.document_count == first_count
 
     chunks_after = (await seeded_session.execute(total_chunks())).scalar_one()
-    assert chunks_after == chunks_before, "re-index must replace chunks, not append"
+    assert chunks_after == chunks_before, "unchanged re-sync must not touch chunks"
 
 
 async def test_pii_redaction_applied_when_enabled(seeded_session: AsyncSession) -> None:

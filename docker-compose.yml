@@ -61,6 +61,18 @@ services:
         condition: service_healthy
     command: ["/app/scripts/start-worker.sh"]
 
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment: *backend_env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["/app/scripts/start-scheduler.sh"]
+
   ui:
     build:
       context: ./frontend

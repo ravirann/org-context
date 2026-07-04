@@ -17,6 +17,7 @@ from context_engine.storage.models import (
     DocStatus,
     DocType,
     Document,
+    SearchEvent,
     Source,
     SourceType,
     User,
@@ -214,8 +215,147 @@ async def test_empty_query_returns_recent_authoritative(seeded_session: AsyncSes
     page = await search_chunks(seeded_session, admin, "   ", SearchFilters())
     assert page.total == 10
     assert page.items
+    # Scores are freshness+authority driven and bounded; MMR may diversify the exact
+    # order, so we assert validity/range rather than strict monotonicity.
     scores = [hit.score for hit in page.items]
-    assert scores == sorted(scores, reverse=True)
+    assert all(0.0 <= s <= 1.0 for s in scores)
     # Snippets and metadata are populated even without a query.
     assert all(hit.snippet for hit in page.items)
     assert all(hit.source_name for hit in page.items)
+
+
+async def test_or_fallback_recalls_multi_term_partial_matches(
+    seeded_session: AsyncSession,
+) -> None:
+    admin = await get_user(seeded_session, "admin@demo.dev")
+    # Two docs each carry only ONE of the two distinctive terms, so a strict websearch
+    # AND-style match for both terms finds neither; the OR-of-lexemes recall fallback
+    # must surface them.
+    doc_a = await make_doc(
+        seeded_session,
+        title="Quokka runbook",
+        contents=["The quokka procedure covers restart steps for the mascot cluster."],
+    )
+    doc_b = await make_doc(
+        seeded_session,
+        title="Narwhal runbook",
+        contents=["The narwhal procedure covers restart steps for the arctic cluster."],
+    )
+    page = await search_chunks(seeded_session, admin, "quokka narwhal", SearchFilters())
+    found = {hit.document_id for hit in page.items}
+    assert str(doc_a.id) in found
+    assert str(doc_b.id) in found
+
+
+async def test_min_max_normalization_stabilizes_ordering(
+    seeded_session: AsyncSession,
+) -> None:
+    admin = await get_user(seeded_session, "admin@demo.dev")
+    # Legs are min-max normalized then weighted, so all scores land in [0, 1]. With
+    # MMR lambda=1 (pure relevance) the ordering is strictly non-increasing.
+    await set_setting(seeded_session, "retrieval_extras", {"mmr_lambda": 1.0})
+    page = await search_chunks(seeded_session, admin, "idempotency webhooks", SearchFilters())
+    assert page.items
+    scores = [hit.score for hit in page.items]
+    assert scores == sorted(scores, reverse=True)
+    assert all(0.0 <= s <= 1.0 for s in scores)
+
+
+async def test_phrase_boost_lifts_exact_title_match(seeded_session: AsyncSession) -> None:
+    admin = await get_user(seeded_session, "admin@demo.dev")
+    phrase = "flamingo migration checklist"
+    exact = await make_doc(
+        seeded_session,
+        title="Flamingo migration checklist",
+        contents=["Follow the flamingo migration checklist before cutting over."],
+    )
+    # A doc mentioning only the individual words, without the exact phrase.
+    await make_doc(
+        seeded_session,
+        title="Assorted notes",
+        contents=["The flamingo lives near the migration path; keep a checklist somewhere."],
+    )
+    page = await search_chunks(seeded_session, admin, phrase, SearchFilters())
+    # The exact-phrase title match ranks first thanks to the phrase/title boost.
+    assert page.items[0].document_id == str(exact.id)
+
+
+async def test_mmr_reduces_same_topic_adjacency(seeded_session: AsyncSession) -> None:
+    admin = await get_user(seeded_session, "admin@demo.dev")
+    # Four near-duplicate "wombat" docs plus one distinct "wombat" doc. Under pure
+    # relevance the near-duplicates cluster at the top; MMR should interleave the
+    # distinct doc earlier. We assert MMR (lambda 0.5) differs from pure relevance
+    # (lambda 1.0) — i.e. diversification actually reorders the head.
+    shared = "Wombat deployment: rollout steps for the burrow service in production."
+    for i in range(4):
+        await make_doc(
+            seeded_session,
+            title=f"Wombat rollout copy {i}",
+            contents=[shared],
+            repo="wombat-svc",
+            service="wombat-svc",
+        )
+    await make_doc(
+        seeded_session,
+        title="Wombat incident retro",
+        contents=["Wombat incident retro: burrow service outage postmortem and lessons."],
+        repo="wombat-svc",
+        service="wombat-svc",
+    )
+
+    await set_setting(seeded_session, "retrieval_extras", {"mmr_lambda": 0.5})
+    diverse = await search_chunks(
+        seeded_session, admin, "wombat burrow service", SearchFilters(repo="wombat-svc")
+    )
+    await set_setting(seeded_session, "retrieval_extras", {"mmr_lambda": 1.0})
+    relevance = await search_chunks(
+        seeded_session, admin, "wombat burrow service", SearchFilters(repo="wombat-svc")
+    )
+
+    diverse_ids = [h.document_id for h in diverse.items]
+    relevance_ids = [h.document_id for h in relevance.items]
+    # Same candidate set, but diversification changes the head ordering.
+    assert set(diverse_ids) == set(relevance_ids)
+    assert diverse_ids != relevance_ids
+
+
+async def test_search_records_telemetry_event(seeded_session: AsyncSession) -> None:
+    admin = await get_user(seeded_session, "admin@demo.dev")
+    before = await _event_count(seeded_session)
+    page = await search_chunks(seeded_session, admin, "idempotency", SearchFilters())
+    after = await _event_count(seeded_session)
+    assert after == before + 1
+
+    event = (
+        await seeded_session.execute(
+            select(SearchEvent).order_by(SearchEvent.created_at.desc()).limit(1)
+        )
+    ).scalar_one()
+    assert event.query == "idempotency"
+    assert event.user_id == admin.id
+    assert event.result_count == page.total
+    assert event.cache_hit is False
+    assert event.took_ms >= 0.0
+    assert len(event.top_document_ids) <= 10
+    assert event.top_document_ids == [h.document_id for h in page.items[:10]]
+
+
+async def test_zero_result_query_records_zero_count_event(
+    seeded_session: AsyncSession,
+) -> None:
+    admin = await get_user(seeded_session, "admin@demo.dev")
+    await search_chunks(
+        seeded_session, admin, "zznonexistentqqterm", SearchFilters(repo="no-such-repo")
+    )
+    event = (
+        await seeded_session.execute(
+            select(SearchEvent).order_by(SearchEvent.created_at.desc()).limit(1)
+        )
+    ).scalar_one()
+    assert event.result_count == 0
+
+
+async def _event_count(session: AsyncSession) -> int:
+    from sqlalchemy import func
+
+    return int((await session.execute(select(func.count()).select_from(SearchEvent))).scalar_one())

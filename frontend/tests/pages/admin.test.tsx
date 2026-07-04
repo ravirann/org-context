@@ -14,6 +14,7 @@ import {
   meViewer,
   paginated,
   settingsFixture,
+  systemInfoFixture,
 } from "../fixtures-admin";
 import { mockFetchRoutes, mockResponse, renderWithProviders } from "../utils";
 
@@ -213,10 +214,16 @@ describe("AdminPage", () => {
   });
 
   it("renders the read-only System tab", async () => {
-    mockFetchRoutes(ADMIN_ROUTES);
+    mockFetchRoutes({ ...ADMIN_ROUTES, "GET /v1/system/info": systemInfoFixture });
     renderWithProviders(<AdminPage />, { route: "/admin" });
 
     await userEvent.click(await screen.findByRole("tab", { name: "System" }));
+
+    const runtime = await screen.findByTestId("system-runtime-card");
+    expect(within(runtime).getByText(/text-embedding-3-small/)).toBeInTheDocument();
+    expect(within(runtime).getByText("oidc")).toBeInTheDocument();
+    expect(within(runtime).getByText("3")).toBeInTheDocument();
+    expect(within(runtime).getByText("0.3.0")).toBeInTheDocument();
 
     const json = await screen.findByTestId("system-settings-json");
     expect(json).toHaveTextContent('"max_packet_tokens": 6000');

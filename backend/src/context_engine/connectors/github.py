@@ -234,5 +234,9 @@ class GitHubConnector:
         """Return the demo org's PRs and code docs (offline, deterministic)."""
         return _items()
 
+    async def list_active_external_ids(self, source: Source) -> list[str]:
+        """Return the external ids currently visible upstream (for pruning)."""
+        return [item.external_id for item in await self.fetch(source)]
+
 
 register(GitHubConnector())

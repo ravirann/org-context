@@ -7,6 +7,11 @@ import { ConfigureSourceDialog } from "@/components/sources/configure-source-dia
 import { EnabledSwitch } from "@/components/sources/enabled-switch";
 import { InlineNumberInput } from "@/components/sources/inline-number-input";
 import { SourceTypeBadge, SyncStatusBadge } from "@/components/sources/source-badges";
+import {
+  LastSyncRunSummary,
+  SyncHistoryPanel,
+  SyncHistoryToggle,
+} from "@/components/sources/sync-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +71,7 @@ function SourceRow({
   onDelete,
 }: SourceRowProps) {
   const [errorOpen, setErrorOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   return (
     <Fragment>
@@ -108,6 +114,9 @@ function SourceRow({
         <TableCell className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
           {timeAgo(source.last_synced_at)}
         </TableCell>
+        <TableCell>
+          <LastSyncRunSummary run={source.last_sync_run} />
+        </TableCell>
         <TableCell className="text-right text-xs tabular-nums">
           {formatNumber(source.document_count)}
         </TableCell>
@@ -140,6 +149,12 @@ function SourceRow({
         </TableCell>
         <TableCell>
           <span className="flex items-center justify-end gap-1">
+            <SyncHistoryToggle
+              sourceId={source.id}
+              sourceName={source.name}
+              open={historyOpen}
+              onToggle={() => setHistoryOpen((open) => !open)}
+            />
             <ConfigureSourceDialog source={source} readOnly={!canConfigure} />
             <Button
               variant="outline"
@@ -168,10 +183,20 @@ function SourceRow({
           data-testid={`source-error-${source.id}`}
           className="hover:bg-transparent"
         >
-          <TableCell colSpan={10} className="py-0 pb-2">
+          <TableCell colSpan={11} className="py-0 pb-2">
             <div className="rounded-md border border-destructive/30 bg-destructive/8 px-3 py-2 font-mono text-xs text-destructive">
               {source.last_error}
             </div>
+          </TableCell>
+        </TableRow>
+      ) : null}
+      {historyOpen ? (
+        <TableRow
+          data-testid={`source-history-${source.id}`}
+          className="hover:bg-transparent"
+        >
+          <TableCell colSpan={11} className="bg-muted/20 py-2">
+            <SyncHistoryPanel sourceId={source.id} />
           </TableCell>
         </TableRow>
       ) : null}
@@ -282,6 +307,7 @@ export default function SourcesPage() {
             <TableHead>Enabled</TableHead>
             <TableHead>Sync</TableHead>
             <TableHead>Last synced</TableHead>
+            <TableHead>Last run</TableHead>
             <TableHead className="text-right">Docs</TableHead>
             <TableHead>ACL sync</TableHead>
             <TableHead>Authority</TableHead>

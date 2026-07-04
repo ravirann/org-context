@@ -10,9 +10,12 @@ not intend to rotate it.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
 
 from context_engine.api.deps import SessionDep, UserDep, require_roles
 from context_engine.api.schemas import (
@@ -23,7 +26,7 @@ from context_engine.api.schemas import (
     SyncEnqueued,
 )
 from context_engine.ingestion.actors import sync_source_actor
-from context_engine.storage.models import Source, SourceType, UserRole
+from context_engine.storage.models import Source, SourceType, SyncRun, UserRole
 from context_engine.storage.repositories import write_audit
 
 router = APIRouter(tags=["sources"])
@@ -68,14 +71,53 @@ def merge_config(stored: dict[str, Any], incoming: dict[str, Any]) -> dict[str, 
     return merged
 
 
+class SyncRunOut(BaseModel):
+    """One ingestion sync run: trigger, status, counts, timing, and errors."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    source_id: str
+    trigger: str
+    status: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    docs_upserted: int
+    docs_skipped: int
+    docs_pruned: int
+    chunks_indexed: int
+    errors: list[dict[str, Any]]
+    created_at: datetime
+
+
 class SourceDetail(SourceOut):
-    """SourceOut plus masked ``config`` and read-only ``sync_state`` (additive)."""
+    """SourceOut plus masked ``config``, ``sync_state``, and last run (additive)."""
 
     config: dict[str, Any] = {}
     sync_state: dict[str, Any] = {}
+    last_sync_run: SyncRunOut | None = None
 
 
-def _source_out(source: Source) -> SourceDetail:
+def _sync_run_out(run: SyncRun) -> SyncRunOut:
+    return SyncRunOut.model_validate(
+        {
+            "id": str(run.id),
+            "source_id": str(run.source_id),
+            "trigger": run.trigger.value,
+            "status": run.status.value,
+            "started_at": run.started_at,
+            "finished_at": run.finished_at,
+            "docs_upserted": run.docs_upserted,
+            "docs_skipped": run.docs_skipped,
+            "docs_pruned": run.docs_pruned,
+            "chunks_indexed": run.chunks_indexed,
+            "errors": list(run.errors or []),
+            "created_at": run.created_at,
+        }
+    )
+
+
+def _source_out(source: Source, last_sync_run: SyncRun | None = None) -> SourceDetail:
     return SourceDetail.model_validate(
         {
             "id": str(source.id),
@@ -91,16 +133,39 @@ def _source_out(source: Source) -> SourceDetail:
             "freshness_window_days": source.freshness_window_days,
             "config": mask_config(source.config or {}),
             "sync_state": dict(source.sync_state or {}),
+            "last_sync_run": _sync_run_out(last_sync_run) if last_sync_run else None,
         }
     )
 
 
+async def _last_sync_runs(
+    session: SessionDep, source_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, SyncRun]:
+    """Return the newest SyncRun per source id (empty when none exist)."""
+    if not source_ids:
+        return {}
+    rows = (
+        (
+            await session.execute(
+                select(SyncRun)
+                .where(SyncRun.source_id.in_(source_ids))
+                .order_by(SyncRun.source_id, SyncRun.started_at.desc(), SyncRun.id.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    latest: dict[uuid.UUID, SyncRun] = {}
+    for run in rows:
+        latest.setdefault(run.source_id, run)
+    return latest
+
+
 @router.get("/sources", response_model=Items[SourceDetail])
 async def list_sources(session: SessionDep, user: UserDep) -> Items[SourceDetail]:
-    from sqlalchemy import select
-
     rows = (await session.execute(select(Source).order_by(Source.name))).scalars().all()
-    return Items(items=[_source_out(s) for s in rows])
+    latest = await _last_sync_runs(session, [s.id for s in rows])
+    return Items(items=[_source_out(s, latest.get(s.id)) for s in rows])
 
 
 @router.post(
@@ -151,6 +216,29 @@ async def sync_source(source_id: uuid.UUID, session: SessionDep, user: UserDep) 
     await write_audit(session, user.id, "source.sync", "source", str(source_id), {})
     await session.flush()
     return SyncEnqueued(status="queued")
+
+
+@router.get("/sources/{source_id}/sync-runs", response_model=Items[SyncRunOut])
+async def list_sync_runs(
+    source_id: uuid.UUID, session: SessionDep, user: UserDep
+) -> Items[SyncRunOut]:
+    """Return the 20 newest sync runs for a source (any authenticated user)."""
+    source = await session.get(Source, source_id)
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    rows = (
+        (
+            await session.execute(
+                select(SyncRun)
+                .where(SyncRun.source_id == source_id)
+                .order_by(SyncRun.started_at.desc(), SyncRun.id.desc())
+                .limit(20)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return Items(items=[_sync_run_out(r) for r in rows])
 
 
 @router.patch(

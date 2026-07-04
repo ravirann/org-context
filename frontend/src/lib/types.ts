@@ -468,6 +468,7 @@ export interface Source {
   freshness_window_days: number;
   config: Record<string, unknown>;
   sync_state: Record<string, unknown>;
+  last_sync_run?: SyncRun | null;
 }
 
 export interface SourceCreate {
@@ -486,6 +487,42 @@ export interface SourceUpdate {
 
 export interface SyncEnqueued {
   status: string;
+}
+
+export type SyncRunTrigger = "manual" | "scheduled";
+export type SyncRunStatus = "running" | "ok" | "error";
+
+export interface SyncRunError {
+  external_id?: string | null;
+  error: string;
+}
+
+export interface SyncRun {
+  id: string;
+  trigger: SyncRunTrigger;
+  status: SyncRunStatus;
+  started_at: string;
+  finished_at: string | null;
+  docs_upserted: number;
+  docs_skipped: number;
+  docs_pruned: number;
+  chunks_indexed: number;
+  errors: SyncRunError[];
+}
+
+/* ---------------------------------- system ------------------------------------ */
+
+export interface SystemEmbeddingInfo {
+  provider: string;
+  model: string;
+  dim: number;
+}
+
+export interface SystemInfo {
+  embedding: SystemEmbeddingInfo;
+  auth_mode: string;
+  queue_depth: number | null;
+  version: string;
 }
 
 /* ---------------------------------- conflicts --------------------------------- */

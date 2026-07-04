@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 import httpx
@@ -24,6 +24,8 @@ logger = get_logger(__name__)
 DEFAULT_API_URL = "https://api.github.com"
 _DOC_PATHS = ("README.md",)
 _PER_PAGE = 100
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+"""Sentinel "since" for full enumeration (no cursor filtering)."""
 
 
 class GitHubLiveConnector:
@@ -93,6 +95,47 @@ class GitHubLiveConnector:
         source.sync_state["issues_cursor"] = to_iso(max_issue)
         source.sync_state["docs_cursor"] = to_iso(max_doc)
         return items
+
+    async def list_active_external_ids(self, source: Source) -> list[str] | None:
+        """Enumerate every external id currently present upstream (for pruning).
+
+        Unlike ``fetch`` (which returns only the cursor delta), this lists the
+        full current set of PRs, issues, and docs so vanished documents can be
+        deprecated. Returns ``None`` if the enumeration fails, so a transient
+        upstream error never triggers a spurious prune.
+        """
+        config = source.config
+        repos: list[str] = list(config.get("repos") or [])
+        org = str(config.get("org") or "")
+
+        active: list[str] = []
+        try:
+            async with self._client(source) as client:
+                for repo in repos:
+                    full = f"{org}/{repo}" if org else repo
+                    for pr in await self._list_prs(client, full):
+                        try:
+                            active.append(f"pr-{int(pr['number'])}")
+                        except (KeyError, TypeError, ValueError):
+                            continue
+                    for issue in await self._list_issues(client, full, _EPOCH):
+                        try:
+                            active.append(f"issue-{full.split('/')[-1]}-{int(issue['number'])}")
+                        except (KeyError, TypeError, ValueError):
+                            continue
+                    for path in _DOC_PATHS:
+                        try:
+                            resp = await request_json(
+                                client, "GET", f"/repos/{full}/contents/{path}"
+                            )
+                        except Exception:  # noqa: BLE001 — missing docs are not an error
+                            continue
+                        if isinstance(resp, dict) and _decode_content(resp):
+                            active.append(f"doc-{full.split('/')[-1]}-{path}")
+        except Exception:  # noqa: BLE001 — never prune on a failed enumeration
+            logger.warning("github_list_active_failed", repos=repos)
+            return None
+        return active
 
     async def _repo_is_private(self, client: httpx.AsyncClient, full: str) -> bool:
         try:
