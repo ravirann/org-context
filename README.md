@@ -25,8 +25,17 @@ make run-ui         # Vite dev server on :5173
 If host port 8000 is taken: `CE_API_PORT=8010 make run` (the UI image is built against the
 matching URL automatically).
 
-Demo API keys (switch roles in the UI top bar): `demo-admin-key`, `demo-lead-key`,
-`demo-engineer-key`, `demo-viewer-key`. MCP token: `demo-mcp-token`. The seeded demo org has
+**Auth modes** — `CE_AUTH_MODE=demo` (default): API keys, switch roles in the UI top bar
+(`demo-admin-key`, `demo-lead-key`, `demo-engineer-key`, `demo-viewer-key`; MCP:
+`demo-mcp-token`). `CE_AUTH_MODE=oidc`: real SSO — `docker compose up -d keycloak`, set
+`CE_OIDC_*` per [docs/IAM.md](docs/IAM.md), and the UI shows a login page
+(`admin@demo.dev` / `demo1234` maps to the seeded admin). API keys keep working for
+agents/CLI/MCP in both modes, and are minted/revoked in Admin → API keys.
+
+**Data sources** — every connector runs in `demo` mode by default (offline fixtures); flip a
+source to `live` with real credentials (GitHub PAT, Jira/Confluence API token, Slack bot
+token) via Sources → Configure or `PATCH /v1/sources/{id}` — incremental cursors, retries,
+and credential masking included ([docs/CONNECTORS.md](docs/CONNECTORS.md)). The seeded demo org has
 6 teams, 24 users, 8 sources, 326 documents (public/team/user-restricted ACL mix), a
 209-node knowledge graph, 6 conflicts, 40+ context packets, 46 agent runs, 90 days of
 activity heatmap data, and a 6-week eval history.
