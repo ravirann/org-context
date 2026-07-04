@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from context_engine.api.routes import (
     admin,
     agent_runs,
+    auth,
     conflicts,
     context,
     context_debt,
@@ -23,6 +24,7 @@ from context_engine.api.routes import (
 )
 
 ALL_ROUTERS: list[APIRouter] = [
+    auth.router,
     dashboard.router,
     context.router,
     search.router,

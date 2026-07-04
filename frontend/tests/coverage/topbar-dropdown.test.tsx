@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { AppRoutes } from "@/App";
-import type { Me } from "@/lib/types";
+import type { AuthSession, Me } from "@/lib/types";
 import { DEFAULT_API_KEY, useAuthStore } from "@/stores/auth";
 import { useThemeStore } from "@/stores/theme";
 
@@ -23,10 +23,12 @@ const ME: Me = {
   team_name: "Platform",
 };
 
+const DEMO_SESSION: AuthSession = { auth_mode: "demo", authenticated: true, user: ME };
+
 describe("Topbar + DropdownMenu", () => {
   it("opens the API key dropdown, navigates with arrow keys, and Escape closes it", async () => {
     useAuthStore.setState({ apiKey: DEFAULT_API_KEY });
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
@@ -57,7 +59,7 @@ describe("Topbar + DropdownMenu", () => {
 
   it("selects a demo key from the dropdown and marks it active", async () => {
     useAuthStore.setState({ apiKey: DEFAULT_API_KEY });
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
@@ -72,7 +74,7 @@ describe("Topbar + DropdownMenu", () => {
 
   it("submits a custom API key via the dropdown form", async () => {
     useAuthStore.setState({ apiKey: DEFAULT_API_KEY });
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
@@ -85,7 +87,7 @@ describe("Topbar + DropdownMenu", () => {
 
   it("closes the dropdown on outside click", async () => {
     useAuthStore.setState({ apiKey: DEFAULT_API_KEY });
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
@@ -99,7 +101,7 @@ describe("Topbar + DropdownMenu", () => {
   });
 
   it("submits the global search and navigates to /explorer", async () => {
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
@@ -109,7 +111,7 @@ describe("Topbar + DropdownMenu", () => {
   });
 
   it("does not navigate when submitting an empty search", async () => {
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
@@ -119,7 +121,7 @@ describe("Topbar + DropdownMenu", () => {
   });
 
   it("focuses global search on Cmd+K", async () => {
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
@@ -134,7 +136,7 @@ describe("Topbar + DropdownMenu", () => {
   it("toggles the theme via the topbar button", async () => {
     useThemeStore.setState({ theme: "light", resolvedTheme: "light" });
     document.documentElement.classList.remove("dark");
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
@@ -145,9 +147,12 @@ describe("Topbar + DropdownMenu", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 
-  it("shows 'Unknown user' when /v1/me has no name yet (mid-load)", () => {
-    mockFetchRoutes({ "GET /v1/me": () => new Promise(() => {}) });
+  it("shows 'Unknown user' when /v1/me has no name yet (mid-load)", async () => {
+    mockFetchRoutes({
+      "GET /v1/me": () => new Promise(() => {}),
+      "GET /v1/auth/session": DEMO_SESSION,
+    });
     renderWithProviders(<AppRoutes />, { route: "/" });
-    expect(screen.getByText("Unknown user")).toBeInTheDocument();
+    expect(await screen.findByText("Unknown user")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,14 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, KeyRound, Menu, Moon, Search, Sun, UserRound } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  ChevronDown,
+  KeyRound,
+  LogOut,
+  Menu,
+  Moon,
+  Search,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -14,7 +23,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useMe } from "@/hooks/use-me";
+import { api } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuthStore } from "@/stores/auth";
 import { useThemeStore } from "@/stores/theme";
 
@@ -25,6 +37,12 @@ const DEMO_KEYS: Array<{ label: string; key: string }> = [
   { label: "Engineer", key: "demo-engineer-key" },
   { label: "Viewer", key: "demo-viewer-key" },
 ];
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -38,8 +56,20 @@ function Topbar({ onMenuClick }: TopbarProps) {
   const { resolvedTheme, toggleTheme } = useThemeStore();
   const apiKey = useAuthStore((s) => s.apiKey);
   const setApiKey = useAuthStore((s) => s.setApiKey);
+  const clearApiKey = useAuthStore((s) => s.clearApiKey);
   const { data: me } = useMe();
+  const sessionQuery = useAuthSession();
   const [customKey, setCustomKey] = useState("");
+
+  const isOidc = sessionQuery.data?.auth_mode === "oidc";
+
+  const logoutMutation = useMutation({
+    mutationFn: () => api.post<void>("/v1/auth/logout"),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.authSession() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me() });
+    },
+  });
 
   // Cmd/Ctrl+K focuses the global search.
   useEffect(() => {
@@ -61,6 +91,11 @@ function Topbar({ onMenuClick }: TopbarProps) {
 
   const switchKey = (key: string) => {
     setApiKey(key);
+    queryClient.clear();
+  };
+
+  const signOutDemo = () => {
+    clearApiKey();
     queryClient.clear();
   };
 
@@ -111,54 +146,92 @@ function Topbar({ onMenuClick }: TopbarProps) {
           )}
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label="Switch API key"
-            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <UserRound className="size-3.5 text-muted-foreground" aria-hidden="true" />
-            <span className="hidden max-w-32 truncate sm:inline">
-              {me?.name ?? "Unknown user"}
-            </span>
-            {me?.role ? <Badge variant="secondary">{me.role}</Badge> : null}
-            <ChevronDown className="size-3 text-muted-foreground" aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Demo API keys</DropdownMenuLabel>
-            {DEMO_KEYS.map((entry) => (
-              <DropdownMenuItem
-                key={entry.key}
-                onSelect={() => switchKey(entry.key)}
-              >
-                <KeyRound aria-hidden="true" />
-                <span className="flex-1">{entry.label}</span>
-                {apiKey === entry.key ? (
-                  <Badge variant="default">active</Badge>
-                ) : null}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Custom key</DropdownMenuLabel>
-            <form
-              className="px-2 pb-1.5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (customKey.trim()) {
-                  switchKey(customKey.trim());
-                  setCustomKey("");
-                }
-              }}
+        {isOidc ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="User menu"
+              className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <input
-                value={customKey}
-                onChange={(event) => setCustomKey(event.target.value)}
-                placeholder="Paste API key, press Enter"
-                aria-label="Custom API key"
-                className="h-7 w-full rounded-md border border-input bg-card px-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </form>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <span
+                aria-hidden="true"
+                className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground"
+              >
+                {initials(me?.name ?? "?")}
+              </span>
+              <span className="hidden max-w-32 truncate sm:inline">
+                {me?.name ?? "Unknown user"}
+              </span>
+              {me?.role ? <Badge variant="secondary">{me.role}</Badge> : null}
+              <ChevronDown className="size-3 text-muted-foreground" aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
+              <div className="px-2 pb-1.5 text-xs">
+                <p className="truncate font-medium text-foreground">{me?.name}</p>
+                <p className="truncate text-muted-foreground">{me?.email}</p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => logoutMutation.mutate()}>
+                <LogOut aria-hidden="true" />
+                <span className="flex-1">Sign out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="Switch API key"
+              className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <UserRound className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              <span className="hidden max-w-32 truncate sm:inline">
+                {me?.name ?? "Unknown user"}
+              </span>
+              {me?.role ? <Badge variant="secondary">{me.role}</Badge> : null}
+              <ChevronDown className="size-3 text-muted-foreground" aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Demo API keys</DropdownMenuLabel>
+              {DEMO_KEYS.map((entry) => (
+                <DropdownMenuItem
+                  key={entry.key}
+                  onSelect={() => switchKey(entry.key)}
+                >
+                  <KeyRound aria-hidden="true" />
+                  <span className="flex-1">{entry.label}</span>
+                  {apiKey === entry.key ? (
+                    <Badge variant="default">active</Badge>
+                  ) : null}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Custom key</DropdownMenuLabel>
+              <form
+                className="px-2 pb-1.5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (customKey.trim()) {
+                    switchKey(customKey.trim());
+                    setCustomKey("");
+                  }
+                }}
+              >
+                <input
+                  value={customKey}
+                  onChange={(event) => setCustomKey(event.target.value)}
+                  placeholder="Paste API key, press Enter"
+                  aria-label="Custom API key"
+                  className="h-7 w-full rounded-md border border-input bg-card px-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </form>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={signOutDemo}>
+                <LogOut aria-hidden="true" />
+                <span className="flex-1">Sign out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </header>
   );

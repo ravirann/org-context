@@ -19,6 +19,17 @@ class Settings(BaseSettings):
 
     env: Literal["dev", "docker", "test"] = "dev"
 
+    # --- Authentication (dual mode, see docs/HARDENING_CONTRACT.md §1) -----------------
+    auth_mode: Literal["demo", "oidc"] = "demo"
+    secret_key: str = "dev-secret-change-me"
+    oidc_issuer: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_redirect_url: str = "http://localhost:8000/v1/auth/callback"
+    session_ttl_hours: int = 12
+    allowed_email_domains: list[str] = []
+    cookie_secure: bool = False
+
     embedding_dim: int = 384
 
     langfuse_public_key: str | None = None

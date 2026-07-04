@@ -466,6 +466,8 @@ export interface Source {
   acl_sync_status: string;
   authority_rank: number;
   freshness_window_days: number;
+  config: Record<string, unknown>;
+  sync_state: Record<string, unknown>;
 }
 
 export interface SourceCreate {
@@ -625,6 +627,20 @@ export interface FeedbackCreate {
   comment?: string;
 }
 
+/* ---------------------------------- auth --------------------------------------- */
+
+export type AuthMode = "demo" | "oidc";
+
+export interface AuthSession {
+  auth_mode: AuthMode;
+  authenticated: boolean;
+  user: Me | null;
+}
+
+export interface AuthLoginResponse {
+  authorization_url: string;
+}
+
 /* ------------------------------- admin & settings ------------------------------ */
 
 export interface AdminUser {
@@ -636,10 +652,29 @@ export interface AdminUser {
   is_active: boolean;
 }
 
+export interface CreateUserRequest {
+  email: string;
+  name: string;
+  role: Role;
+  team_id?: string | null;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  role?: Role;
+  team_id?: string | null;
+  is_active?: boolean;
+}
+
 export interface AdminTeam {
   id: string;
   name: string;
   member_count: number;
+}
+
+export interface CreateTeamRequest {
+  name: string;
+  description?: string;
 }
 
 export interface ApiKeyOut {
@@ -649,6 +684,23 @@ export interface ApiKeyOut {
   user_name: string;
   is_active: boolean;
   last_used_at: string | null;
+}
+
+export type ApiKeyKind = "api" | "mcp";
+
+export interface CreateApiKeyRequest {
+  label: string;
+  kind: ApiKeyKind;
+  user_id: string;
+  role_hint?: Role;
+}
+
+export interface ApiKeyCreated {
+  id: string;
+  label: string;
+  kind: string;
+  user_name: string;
+  raw_key: string;
 }
 
 export interface AuditLog {

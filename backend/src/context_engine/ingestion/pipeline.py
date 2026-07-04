@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from context_engine.config.constants import SETTINGS_PII_REDACTION
 from context_engine.connectors.base import get_connector
@@ -32,7 +33,7 @@ async def sync_source(session: AsyncSession, source: Source) -> int:
 
     upserted = 0
     try:
-        connector = get_connector(str(source.type))
+        connector = get_connector(str(source.type), source.config)
         items = await connector.fetch(source)
 
         pii_conf = await get_setting(session, SETTINGS_PII_REDACTION, {}) or {}
@@ -49,6 +50,9 @@ async def sync_source(session: AsyncSession, source: Source) -> int:
             upserted += 1
         source.sync_status = SyncStatus.ok
         source.last_error = None
+        # Live connectors advance cursors on source.sync_state in place; JSONB
+        # mutations need an explicit dirty flag so the change is persisted.
+        flag_modified(source, "sync_state")
     except Exception as exc:
         logger.error(
             "source_sync_failed", source_id=str(source.id), source_name=source.name, error=str(exc)

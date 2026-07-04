@@ -12,11 +12,10 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from context_engine.api.app_config import cors_origins
 from context_engine.api.routes import ALL_ROUTERS
 from context_engine.observability.logging import configure_logging
 from context_engine.observability.middleware import RequestContextMiddleware
-
-CORS_ORIGINS = ["http://localhost:5173", "http://localhost:8080"]
 
 
 def create_app() -> FastAPI:
@@ -28,7 +27,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=CORS_ORIGINS,
+        allow_origins=cors_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

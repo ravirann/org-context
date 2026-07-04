@@ -313,6 +313,14 @@ export const sources: Source[] = [
     acl_sync_status: "ok",
     authority_rank: 90,
     freshness_window_days: 30,
+    config: {
+      mode: "live",
+      token: "•••7a2c",
+      org: "example-org",
+      repos: ["backend", "shared-libs"],
+      team_name: "Platform",
+    },
+    sync_state: { pr_cursor: "2026-07-01T00:00:00Z", issues_cursor: "2026-06-30T00:00:00Z" },
   },
   {
     id: "src-2",
@@ -326,6 +334,8 @@ export const sources: Source[] = [
     acl_sync_status: "pending",
     authority_rank: 60,
     freshness_window_days: 14,
+    config: { mode: "demo" },
+    sync_state: {},
   },
   {
     id: "src-3",
@@ -339,6 +349,8 @@ export const sources: Source[] = [
     acl_sync_status: "pending",
     authority_rank: 30,
     freshness_window_days: 7,
+    config: { mode: "demo" },
+    sync_state: {},
   },
 ];
 

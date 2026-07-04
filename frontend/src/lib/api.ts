@@ -7,7 +7,10 @@ import { useAuthStore } from "@/stores/auth";
  *   const res = await api.post<SearchResponse>("/v1/search", { query: "auth" });
  *
  * - Base URL: import.meta.env.VITE_API_URL ?? "http://localhost:8000"
- * - Sends `Authorization: Bearer <apiKey>` from useAuthStore on every request.
+ * - Sends `Authorization: Bearer <apiKey>` from useAuthStore on every request,
+ *   but ONLY when an apiKey is actually set (oidc/session-cookie users have
+ *   none). Always sends `credentials: "include"` so the ce_session cookie
+ *   (oidc mode) rides along.
  * - Throws ApiError { status, detail } on any non-2xx response (parses the
  *   FastAPI `{detail}` error shape when present).
  * - 204 responses resolve to undefined.
@@ -58,14 +61,15 @@ async function request<T>(
   path: string,
   options: { params?: QueryParams; body?: unknown } = {},
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${useAuthStore.getState().apiKey}`,
-  };
+  const headers: Record<string, string> = {};
+  const apiKey = useAuthStore.getState().apiKey;
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
 
   const response = await fetch(buildUrl(path, options.params), {
     method,
     headers,
+    credentials: "include",
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 

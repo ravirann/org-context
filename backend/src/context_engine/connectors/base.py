@@ -87,9 +87,26 @@ def _load_builtin_connectors() -> None:
         importlib.import_module(f"context_engine.connectors.{name}")
 
 
-def get_connector(source_type: str) -> Connector:
-    """Return the registered connector for ``source_type`` (loads built-ins lazily)."""
+def get_connector(source_type: str, config: dict[str, Any] | None = None) -> Connector:
+    """Return the connector for ``source_type``, routing demo vs live by config.
+
+    ``config["mode"]`` selects the implementation: ``"demo"`` (the default,
+    preserving all existing behavior) returns the registered offline fixture
+    connector; ``"live"`` returns a fresh live connector instance that reads
+    credentials + cursors off the ``Source`` at fetch time. Callers that pass no
+    config get the demo connector, keeping existing call sites unchanged.
+    """
     key = str(source_type)
+    mode = (config or {}).get("mode", "demo")
+    if mode == "live":
+        from context_engine.connectors.live import LIVE_CONNECTORS
+
+        try:
+            connector_cls = LIVE_CONNECTORS[key]
+        except KeyError:
+            raise ValueError(f"No live connector registered for source type {key!r}") from None
+        return connector_cls()  # type: ignore[no-any-return]
+
     if key not in _REGISTRY:
         _load_builtin_connectors()
     try:

@@ -70,9 +70,11 @@ describe("AdminPage", () => {
 
     const table = await screen.findByTestId("admin-users-table");
     expect(within(table).getByText("ava@example.com")).toBeInTheDocument();
-    expect(within(table).getByText("admin")).toBeInTheDocument();
-    expect(within(table).getByText("lead")).toBeInTheDocument();
-    expect(within(table).getByText("engineer")).toBeInTheDocument();
+    expect(within(table).getByLabelText("Role for ava@example.com")).toHaveValue("admin");
+    expect(within(table).getByLabelText("Role for lena@example.com")).toHaveValue("lead");
+    expect(within(table).getByLabelText("Role for eli@example.com")).toHaveValue(
+      "engineer",
+    );
     expect(within(table).getByText("inactive")).toBeInTheDocument();
     expect(within(table).getAllByText("active")).toHaveLength(2);
     expect(screen.getByTestId("page-admin")).toBeInTheDocument();
@@ -85,7 +87,7 @@ describe("AdminPage", () => {
     await userEvent.click(await screen.findByRole("tab", { name: "Teams" }));
 
     const table = await screen.findByTestId("admin-teams-table");
-    expect(within(table).getByText("Platform")).toBeInTheDocument();
+    expect(within(table).getByDisplayValue("Platform")).toBeInTheDocument();
     expect(within(table).getByText("11")).toBeInTheDocument();
   });
 
@@ -99,7 +101,7 @@ describe("AdminPage", () => {
     expect(within(table).getByText("ava-cli")).toBeInTheDocument();
     expect(within(table).getByText("mcp")).toBeInTheDocument();
     expect(within(table).getByText("never")).toBeInTheDocument();
-    expect(screen.getByText(/Key material is never displayed/)).toBeInTheDocument();
+    expect(screen.getByText(/shown only once, right after creation/)).toBeInTheDocument();
   });
 
   it("warns when retrieval weights do not sum to 1 and saves the PATCH body", async () => {

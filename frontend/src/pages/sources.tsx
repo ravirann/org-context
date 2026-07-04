@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Database, RefreshCw, Trash2 } from "lucide-r
 import { Fragment, useState } from "react";
 
 import { AddSourceDialog } from "@/components/sources/add-source-dialog";
+import { ConfigureSourceDialog } from "@/components/sources/configure-source-dialog";
 import { EnabledSwitch } from "@/components/sources/enabled-switch";
 import { InlineNumberInput } from "@/components/sources/inline-number-input";
 import { SourceTypeBadge, SyncStatusBadge } from "@/components/sources/source-badges";
@@ -50,12 +51,20 @@ function SourcesSkeleton() {
 interface SourceRowProps {
   source: Source;
   canManage: boolean;
+  canConfigure: boolean;
   onPatch: (id: string, body: SourceUpdate) => void;
   onSync: (id: string) => void;
   onDelete: (source: Source) => void;
 }
 
-function SourceRow({ source, canManage, onPatch, onSync, onDelete }: SourceRowProps) {
+function SourceRow({
+  source,
+  canManage,
+  canConfigure,
+  onPatch,
+  onSync,
+  onDelete,
+}: SourceRowProps) {
   const [errorOpen, setErrorOpen] = useState(false);
 
   return (
@@ -131,6 +140,7 @@ function SourceRow({ source, canManage, onPatch, onSync, onDelete }: SourceRowPr
         </TableCell>
         <TableCell>
           <span className="flex items-center justify-end gap-1">
+            <ConfigureSourceDialog source={source} readOnly={!canConfigure} />
             <Button
               variant="outline"
               size="sm"
@@ -177,6 +187,7 @@ export default function SourcesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Source | null>(null);
 
   const canManage = me?.role === "admin" || me?.role === "lead";
+  const canConfigure = me?.role === "admin";
 
   const { data, error, isPending, refetch } = useQuery({
     queryKey: queryKeys.sources(),
@@ -284,6 +295,7 @@ export default function SourcesPage() {
               key={source.id}
               source={source}
               canManage={canManage}
+              canConfigure={canConfigure}
               onPatch={(id, body) => patchMutation.mutate({ id, body })}
               onSync={(id) => syncMutation.mutate(id)}
               onDelete={setDeleteTarget}

@@ -36,6 +36,9 @@ services:
       CE_DATABASE_URL: postgresql+asyncpg://ce:ce@db:5432/context_engine
       CE_REDIS_URL: redis://redis:6379/0
       CE_ENV: docker
+      CE_SECRET_KEY: ${CE_SECRET_KEY:-dev-secret-change-me}
+      CE_AUTH_MODE: ${CE_AUTH_MODE:-demo}
+      CE_CORS_ORIGINS: http://localhost:${CE_UI_PORT:-8080},http://localhost:5173
     ports:
       # Override with CE_API_PORT if host :8000 is taken (UI build arg must match).
       - "${CE_API_PORT:-8000}:8000"
@@ -65,9 +68,21 @@ services:
       args:
         VITE_API_URL: http://localhost:${CE_API_PORT:-8000}
     ports:
-      - "8080:80"
+      # Override with CE_UI_PORT if host :8080 is taken.
+      - "${CE_UI_PORT:-8080}:80"
     depends_on:
       - api
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./backend/keycloak:/opt/keycloak/data/import:ro
 
 volumes:
   pgdata:

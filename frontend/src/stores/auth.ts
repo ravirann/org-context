@@ -11,6 +11,8 @@ export const DEFAULT_API_KEY = "demo-admin-key";
 interface AuthState {
   apiKey: string;
   setApiKey: (apiKey: string) => void;
+  /** Reset back to the default demo key (cheap "sign out" parity in demo mode). */
+  clearApiKey: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -18,6 +20,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       apiKey: DEFAULT_API_KEY,
       setApiKey: (apiKey) => set({ apiKey: apiKey.trim() || DEFAULT_API_KEY }),
+      clearApiKey: () => set({ apiKey: DEFAULT_API_KEY }),
     }),
     { name: "org-context-auth" },
   ),

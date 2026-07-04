@@ -251,6 +251,8 @@ class User(TimestampMixin, Base):
     team_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("teams.id"), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     avatar_color: Mapped[str] = mapped_column(String(16), default="#64748b", nullable=False)
+    external_subject: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     team: Mapped[Team | None] = relationship(back_populates="members")
     api_keys: Mapped[list[ApiKey]] = relationship(back_populates="user")
@@ -280,6 +282,9 @@ class Source(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     config: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    sync_state: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}", nullable=False
+    )
     sync_status: Mapped[SyncStatus] = mapped_column(
         _enum(SyncStatus, "sync_status"), default=SyncStatus.idle, nullable=False
     )

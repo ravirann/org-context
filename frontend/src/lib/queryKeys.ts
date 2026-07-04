@@ -4,6 +4,7 @@
  */
 export const queryKeys = {
   me: (apiKey?: string) => ["me", apiKey ?? "current"] as const,
+  authSession: () => ["auth", "session"] as const,
 
   dashboardSummary: () => ["dashboard", "summary"] as const,
   dashboardTrends: (days: number) => ["dashboard", "trends", days] as const,

@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { AppRoutes } from "@/App";
-import type { Me } from "@/lib/types";
+import type { AuthSession, Me } from "@/lib/types";
 
 import { mockFetchRoutes, renderWithProviders } from "../utils";
 
@@ -21,23 +21,25 @@ const ME: Me = {
   team_name: "Platform",
 };
 
+const DEMO_SESSION: AuthSession = { auth_mode: "demo", authenticated: true, user: ME };
+
 describe("AppShell mobile sheet", () => {
   it("opens the mobile nav sheet from the topbar menu button", async () => {
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
     expect(screen.queryByTestId("mobile-nav-overlay")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    await user.click(await screen.findByRole("button", { name: "Open navigation" }));
     expect(screen.getByTestId("mobile-nav-overlay")).toBeInTheDocument();
   });
 
   it("closes the mobile nav sheet on overlay click", async () => {
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
-    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    await user.click(await screen.findByRole("button", { name: "Open navigation" }));
     expect(screen.getByTestId("mobile-nav-overlay")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("mobile-nav-overlay"));
@@ -45,11 +47,11 @@ describe("AppShell mobile sheet", () => {
   });
 
   it("closes the mobile nav sheet on Escape", async () => {
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
-    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    await user.click(await screen.findByRole("button", { name: "Open navigation" }));
     expect(screen.getByTestId("mobile-nav-overlay")).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
@@ -57,11 +59,11 @@ describe("AppShell mobile sheet", () => {
   });
 
   it("closes the mobile nav sheet when a nav link is clicked (route change)", async () => {
-    mockFetchRoutes({ "GET /v1/me": ME });
+    mockFetchRoutes({ "GET /v1/me": ME, "GET /v1/auth/session": DEMO_SESSION });
     const user = userEvent.setup();
     renderWithProviders(<AppRoutes />, { route: "/" });
 
-    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    await user.click(await screen.findByRole("button", { name: "Open navigation" }));
     expect(screen.getByTestId("mobile-nav-overlay")).toBeInTheDocument();
 
     // The mobile sheet renders its own full nav; use it to navigate away.

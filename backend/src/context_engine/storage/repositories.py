@@ -7,15 +7,17 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import ColumnElement, func, or_, select, true
+from sqlalchemy import ColumnElement, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from context_engine.storage.models import (
+    ActivityEvent,
     ApiKey,
     AppSetting,
     AuditLog,
     Document,
+    Team,
     User,
     UserRole,
 )
@@ -108,3 +110,33 @@ async def count_where(session: AsyncSession, model: type[Any], *clauses: Any) ->
     """Return the row count of a mapped model matching the given clauses."""
     result = await session.execute(select(func.count()).select_from(model).where(*clauses))
     return int(result.scalar_one())
+
+
+async def get_user_by_email_ci(session: AsyncSession, email: str) -> User | None:
+    """Case-insensitive lookup of a user by email (for duplicate-email checks)."""
+    stmt = select(User).where(func.lower(User.email) == email.lower())
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def get_user_with_team(session: AsyncSession, user_id: uuid.UUID) -> User | None:
+    """Fetch a user by id with its team eagerly loaded, or ``None``."""
+    stmt = select(User).where(User.id == user_id).options(selectinload(User.team))
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def get_team_by_id(session: AsyncSession, team_id: uuid.UUID) -> Team | None:
+    """Fetch a team by id, or ``None``."""
+    return await session.get(Team, team_id)
+
+
+async def nullify_team_members(session: AsyncSession, team_id: uuid.UUID) -> None:
+    """Set ``team_id`` to NULL for every user assigned to ``team_id``.
+
+    Also clears the (nullable) ``activity_events.team_id`` FK so the team row can be
+    deleted without violating referential integrity; unrelated to user membership.
+    """
+    await session.execute(update(User).where(User.team_id == team_id).values(team_id=None))
+    await session.execute(
+        update(ActivityEvent).where(ActivityEvent.team_id == team_id).values(team_id=None)
+    )
+    await session.flush()

@@ -1,0 +1,73 @@
+{
+  "realm": "org-context",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "clients": [
+    {
+      "clientId": "org-context-api",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "dev-client-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:8000/v1/auth/callback",
+        "http://localhost:8010/v1/auth/callback"
+      ],
+      "webOrigins": [
+        "+"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@demo.dev",
+      "email": "admin@demo.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Ava",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo1234",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "priya@demo.dev",
+      "email": "priya@demo.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Priya",
+      "lastName": "Sharma",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo1234",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "liam@demo.dev",
+      "email": "liam@demo.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Liam",
+      "lastName": "O'Brien",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo1234",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}
