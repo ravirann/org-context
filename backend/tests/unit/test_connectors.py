@@ -21,6 +21,12 @@ EXPECTED_DOC_TYPES: dict[str, set[str]] = {
     "incident": {"incident"},
     "ci": {"ci_run"},
     "feedback": {"feedback"},
+    "notion": {"doc"},
+    "linear": {"ticket"},
+    "zendesk": {"ticket"},
+    "gdrive": {"doc"},
+    "gmail": {"message"},
+    "gcal": {"doc"},
 }
 
 

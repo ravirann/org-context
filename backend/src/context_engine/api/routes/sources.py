@@ -31,7 +31,9 @@ from context_engine.storage.repositories import write_audit
 
 router = APIRouter(tags=["sources"])
 
-SECRET_KEYS = frozenset({"token", "api_token", "client_secret", "password"})
+SECRET_KEYS = frozenset(
+    {"token", "api_token", "api_key", "client_secret", "password", "service_account_json"}
+)
 """Config keys whose values are masked in every response."""
 
 MASK_PREFIX = "•••"
