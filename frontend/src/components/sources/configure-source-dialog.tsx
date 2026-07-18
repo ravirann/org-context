@@ -53,6 +53,34 @@ const TYPE_FIELDS: Record<string, FieldSpec[]> = {
     { key: "api_token", label: "API token", secret: true },
     { key: "space_keys", label: "Space keys", list: true },
   ],
+  notion: [
+    { key: "token", label: "Integration token", secret: true },
+    { key: "query", label: "Search query" },
+  ],
+  linear: [
+    { key: "api_key", label: "API key", secret: true },
+    { key: "team_keys", label: "Team keys", list: true },
+  ],
+  zendesk: [
+    { key: "base_url", label: "Base URL" },
+    { key: "email", label: "Email" },
+    { key: "api_token", label: "API token", secret: true },
+  ],
+  gdrive: [
+    { key: "service_account_json", label: "Service account JSON", secret: true },
+    { key: "subject", label: "Impersonate user (email)" },
+    { key: "folder_ids", label: "Folder IDs", list: true },
+  ],
+  gmail: [
+    { key: "service_account_json", label: "Service account JSON", secret: true },
+    { key: "subject", label: "Mailbox (email)" },
+    { key: "query", label: "Gmail search query" },
+  ],
+  gcal: [
+    { key: "service_account_json", label: "Service account JSON", secret: true },
+    { key: "subject", label: "Impersonate user (email)" },
+    { key: "calendar_ids", label: "Calendar IDs", list: true },
+  ],
 };
 
 function isMasked(value: unknown): boolean {
